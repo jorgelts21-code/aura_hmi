@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="AURA">
   <meta name="theme-color" content="#07100d">
   <title>AURA</title>
-  <meta name="aura-version" content="1.3">
+  <meta name="aura-version" content="1.3.1">
 
   <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
   <script>
@@ -457,7 +457,7 @@
     <div class="setup-logo">AURA</div>
     <div class="setup-title">Acceso</div>
 
-    <div class="setup-label">MQTT · aura_backend</div>
+    <div class="setup-label">MQTT · aura_ipad</div>
     <input id="firstMqttPassword" type="password" autocomplete="off">
 
     <div class="setup-label">Supabase · AURA_READ_SECRET</div>
@@ -475,7 +475,7 @@
 
   var CONFIG = {
     mqttUrl: "wss://xa60e19c.ala.eu-central-1.emqxsl.com:8084/mqtt",
-    mqttUser: "aura_backend",
+    mqttUser: "aura_ipad",
     historyUrl: "https://vinwpbmljzchsjmaitkb.supabase.co/functions/v1/aura-history-ingest",
     topicPlantsAvailability: "aura/plants/availability",
     topicPlantsState: "aura/plants/state",
@@ -654,7 +654,7 @@
       btns[i].textContent=state.powerPending ? "ENVIANDO..." : (state.pcOn===true ? "AURA ENCENDIDO" : "ENCENDER AURA");
     }
 
-    $("settingsMqtt").textContent = mqtt ? "CONECTADO" : "DESCONECTADO";
+    $("settingsMqtt").textContent = mqtt ? "CONECTADO" : (state.mqttConnecting ? "CONECTANDO" : "DESCONECTADO");
     $("settingsMqtt").style.color = mqtt ? "var(--green)" : "var(--red)";
     $("settingsDb").textContent = state.historyOk ? "CONECTADO" : "SIN VERIFICAR";
     $("settingsDb").style.color = state.historyOk ? "var(--green)" : "var(--amber)";
@@ -687,9 +687,10 @@
   }
 
   function connectMQTT(){
-    var password = localStorage.getItem("aura_backend_password") || "";
+    var password = localStorage.getItem("aura_ipad_password") ||
+      localStorage.getItem("aura_mqtt_password") || "";
     if(!password){
-      toast("Configura la contraseña MQTT de aura_backend.");
+      toast("Configura la contraseña MQTT de aura_ipad.");
       showPage("settings");
       return;
     }
@@ -712,17 +713,31 @@
       password:password,
       clientId:clientId,
       clean:true,
+      protocolVersion:4,
       reconnectPeriod:5000,
-      connectTimeout:12000,
-      keepalive:30
+      connectTimeout:15000,
+      keepalive:30,
+      resubscribe:true
     });
 
     state.client.on("connect",function(){
       state.mqttConnected=true;
       state.mqttConnecting=false;
-      state.client.subscribe("aura/plants/#",{qos:0});
-      state.client.subscribe("aura/server/#",{qos:0});
-      toast("AURA Cloud conectado");
+
+      state.client.subscribe([
+        CONFIG.topicPlantsAvailability,
+        CONFIG.topicPlantsState,
+        CONFIG.topicServerAvailability,
+        CONFIG.topicServerState,
+        CONFIG.topicServerResult
+      ],{qos:0},function(err){
+        if(err){
+          toast("MQTT conectado · error de suscripción");
+        }else{
+          toast("AURA Cloud conectado");
+        }
+      });
+
       updateUI();
     });
 
@@ -733,13 +748,13 @@
 
     state.client.on("close",function(){
       state.mqttConnected=false;
-      state.mqttConnecting=false;
+      state.mqttConnecting=true;
       updateUI();
     });
 
     state.client.on("offline",function(){
       state.mqttConnected=false;
-      state.mqttConnecting=false;
+      state.mqttConnecting=true;
       updateUI();
     });
 
@@ -1071,7 +1086,7 @@
     $("saveMqtt").addEventListener("click",function(){
       var v=$("setMqttPassword").value.trim();
       if(!v){toast("Introduce la contraseña.");return;}
-      localStorage.setItem("aura_backend_password",v);
+      localStorage.setItem("aura_ipad_password",v);
       connectMQTT();
     });
 
@@ -1089,7 +1104,7 @@
 
     $("forgetAll").addEventListener("click",function(){
       if(window.confirm("¿Olvidar las credenciales guardadas en este iPad?")){
-        localStorage.removeItem("aura_backend_password");
+        localStorage.removeItem("aura_ipad_password");
         localStorage.removeItem("aura_mqtt_password");
         localStorage.removeItem("aura_read_secret");
         location.reload();
@@ -1100,7 +1115,7 @@
       var m=$("firstMqttPassword").value.trim();
       var r=$("firstReadSecret").value.trim();
       if(!m || !r){toast("Introduce las dos credenciales.");return;}
-      localStorage.setItem("aura_backend_password",m);
+      localStorage.setItem("aura_ipad_password",m);
       localStorage.setItem("aura_read_secret",r);
       $("firstSetup").className="hidden";
       $("setMqttPassword").value=m;
@@ -1118,8 +1133,13 @@
     $("setHistoryUrl").value=CONFIG.historyUrl;
     setToday();
 
-    var mp=localStorage.getItem("aura_backend_password") || "";
+    var mp=localStorage.getItem("aura_ipad_password") ||
+      localStorage.getItem("aura_mqtt_password") || "";
     var rs=localStorage.getItem("aura_read_secret") || "";
+
+    if(mp && !localStorage.getItem("aura_ipad_password")){
+      localStorage.setItem("aura_ipad_password",mp);
+    }
     $("setMqttPassword").value=mp;
     $("setReadSecret").value=rs;
 
