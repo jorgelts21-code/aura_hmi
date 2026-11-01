@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AURA">
+  <meta name="theme-color" content="#07100d">
+  <title>AURA</title>
+
+  <!-- MQTT.js 4.x: deliberadamente fijado por compatibilidad con Safari/iOS antiguos -->
+  <script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#050807;
+      --panel:#0b1110;
+      --panel2:#0e1714;
+      --line:#1b2b25;
+      --text:#f2f7f4;
+      --muted:#8ea29a;
+      --green:#42df91;
+      --green2:#1cad68;
+      --blue:#5aa9ff;
+      --amber:#ffc857;
+      --red:#ff5f68;
+      --orange:#ff9d52;
+      --cyan:#62d8e8;
+      --shadow:0 10px 30px rgba(0,0,0,.24);
+    }
+
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+    body{overflow:hidden;-webkit-user-select:none;user-select:none}
+    button,input{font:inherit}
+    button{cursor:pointer}
+    .hidden{display:none!important}
+
+    #app{width:100vw;height:100vh;min-width:900px;min-height:650px;background:
+      radial-gradient(circle at 80% 10%,rgba(66,223,145,.08),transparent 32%),
+      linear-gradient(160deg,#050807 0%,#07100d 55%,#050807 100%);
+    }
+
+    .topbar{
+      height:78px;position:absolute;left:0;right:0;top:0;
+      display:flex;align-items:center;padding:0 26px;border-bottom:1px solid var(--line);
+      background:rgba(5,8,7,.96);z-index:10;
+    }
+    .brand{font-size:28px;font-weight:800;letter-spacing:6px;color:var(--green)}
+    .brand-sub{margin-left:13px;font-size:11px;letter-spacing:2px;color:var(--muted);padding-top:5px}
+    .top-right{margin-left:auto;display:flex;align-items:center}
+    .top-pill{
+      display:flex;align-items:center;margin-left:12px;padding:9px 13px;border:1px solid var(--line);
+      border-radius:12px;background:var(--panel);font-size:12px;color:var(--muted)
+    }
+    .dot{width:9px;height:9px;border-radius:50%;background:#46534f;margin-right:8px;box-shadow:0 0 0 3px rgba(255,255,255,.02)}
+    .dot.on{background:var(--green);box-shadow:0 0 12px rgba(66,223,145,.6)}
+    .dot.warn{background:var(--amber)}
+    .clock{font-size:20px;font-variant-numeric:tabular-nums;color:#d9e6df;margin-left:18px}
+
+    .sidebar{
+      position:absolute;top:78px;left:0;bottom:0;width:184px;
+      padding:18px 14px;border-right:1px solid var(--line);background:rgba(7,13,11,.92)
+    }
+    .nav-btn{
+      width:100%;height:58px;margin-bottom:10px;border:0;border-radius:13px;text-align:left;
+      padding:0 14px;background:transparent;color:var(--muted);font-weight:700;font-size:13px;
+      display:flex;align-items:center
+    }
+    .nav-btn .ico{width:30px;font-size:20px;margin-right:7px;text-align:center}
+    .nav-btn.active{background:linear-gradient(90deg,rgba(66,223,145,.16),rgba(66,223,145,.05));color:var(--green);border:1px solid rgba(66,223,145,.18)}
+    .nav-footer{position:absolute;left:14px;right:14px;bottom:17px;color:#5f716a;font-size:10px;line-height:1.5}
+
+    .main{
+      position:absolute;top:78px;left:184px;right:0;bottom:0;overflow:auto;
+      -webkit-overflow-scrolling:touch;padding:22px 24px 28px
+    }
+    .page{display:none}
+    .page.active{display:block}
+    .page-head{display:flex;align-items:flex-end;margin-bottom:18px}
+    .page-title{font-size:25px;font-weight:780;letter-spacing:.3px}
+    .page-sub{margin-left:14px;color:var(--muted);font-size:12px;padding-bottom:3px}
+
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);grid-auto-rows:minmax(88px,auto);margin:-7px}
+    .card{
+      background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+      border-radius:17px;margin:7px;padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden
+    }
+    .c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+    .card-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);font-weight:700}
+    .big{font-size:36px;font-weight:800;margin-top:8px;letter-spacing:-1px}
+    .medium{font-size:22px;font-weight:760;margin-top:8px}
+    .small{font-size:11px;color:var(--muted);line-height:1.5}
+    .accent-green{color:var(--green)}.accent-blue{color:var(--blue)}.accent-amber{color:var(--amber)}.accent-red{color:var(--red)}.accent-orange{color:var(--orange)}.accent-cyan{color:var(--cyan)}
+    .status-row{display:flex;align-items:center;margin-top:10px}
+    .status-dot{width:10px;height:10px;border-radius:50%;background:#46534f;margin-right:8px}
+    .status-dot.on{background:var(--green);box-shadow:0 0 10px rgba(66,223,145,.5)}
+    .status-dot.off{background:var(--red)}
+    .status-dot.wait{background:var(--amber)}
+    .status-text{font-size:13px;font-weight:700}
+    .right-tag{position:absolute;right:16px;top:16px;font-size:10px;border:1px solid var(--line);border-radius:10px;padding:6px 9px;color:var(--muted)}
+
+    .metric{min-height:138px}
+    .metric .unit{font-size:16px;margin-left:4px;color:var(--muted)}
+    .metric .state{position:absolute;bottom:16px;left:18px;font-size:11px;font-weight:800;letter-spacing:1px}
+    .metric .last{position:absolute;bottom:16px;right:18px;font-size:10px;color:#667a71}
+
+    .server-hero{min-height:190px;display:flex;align-items:center}
+    .server-icon{width:112px;height:112px;border:1px solid var(--line);border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:52px;background:#07100d;margin-right:24px}
+    .server-info{flex:1}
+    .power-btn{
+      min-width:210px;height:62px;border-radius:15px;border:1px solid rgba(66,223,145,.35);
+      background:linear-gradient(180deg,#1cc777,#149a59);color:white;font-weight:800;letter-spacing:.7px;font-size:15px;
+      box-shadow:0 8px 24px rgba(28,199,119,.22)
+    }
+    .power-btn:disabled{background:#17201d;color:#62736c;border-color:#26352f;box-shadow:none;cursor:default}
+    .power-btn.danger{background:linear-gradient(180deg,#d87a31,#a34f16);border-color:#d78542}
+
+    .line{height:1px;background:var(--line);margin:15px 0}
+    .info-row{display:flex;align-items:center;min-height:33px;font-size:12px}
+    .info-row .label{color:var(--muted)}
+    .info-row .value{margin-left:auto;font-weight:700;text-align:right}
+
+    .chart-toolbar{display:flex;align-items:center;margin-bottom:12px}
+    .seg{display:flex;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+    .seg button{border:0;border-right:1px solid var(--line);background:#0a110f;color:var(--muted);height:36px;padding:0 15px;font-size:11px;font-weight:700}
+    .seg button:last-child{border-right:0}
+    .seg button.active{background:rgba(66,223,145,.13);color:var(--green)}
+    .date-nav{margin-left:auto;display:flex;align-items:center}
+    .date-nav button{width:38px;height:36px;border:1px solid var(--line);background:#0a110f;color:var(--text);border-radius:10px;margin-left:6px}
+    .date-nav input{height:36px;border:1px solid var(--line);background:#0a110f;color:var(--text);border-radius:10px;padding:0 10px;margin-left:6px}
+    .chart-wrap{height:292px;border:1px solid #15231e;border-radius:13px;background:#070d0b;padding:8px 6px 2px}
+    #chart{width:100%;height:100%}
+    .chart-foot{display:flex;margin-top:10px;color:var(--muted);font-size:10px}
+    .chart-foot span{margin-right:22px}
+    .chart-foot b{color:var(--text)}
+
+    .alarm-empty{text-align:center;padding:55px 10px;color:var(--muted)}
+    .alarm-item{display:flex;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:13px;background:#09100e;margin-bottom:10px}
+    .alarm-icon{font-size:22px;margin-right:13px}
+    .alarm-body{flex:1}.alarm-title{font-weight:750;font-size:13px}.alarm-desc{color:var(--muted);font-size:11px;margin-top:4px}
+
+    .form-row{display:flex;align-items:center;margin-bottom:13px}
+    .form-row label{width:190px;color:var(--muted);font-size:12px}
+    .form-row input{
+      flex:1;height:41px;border:1px solid var(--line);border-radius:10px;background:#07100d;color:var(--text);
+      padding:0 12px;outline:none
+    }
+    .form-row input:focus{border-color:rgba(66,223,145,.45)}
+    .btn{
+      border:1px solid var(--line);background:#0d1713;color:var(--text);border-radius:11px;height:42px;padding:0 15px;
+      font-weight:700;font-size:12px;margin-right:8px
+    }
+    .btn.primary{background:rgba(66,223,145,.14);border-color:rgba(66,223,145,.35);color:var(--green)}
+    .btn.red{color:var(--red);border-color:rgba(255,95,104,.3)}
+    .note{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#08100d;color:var(--muted);font-size:11px;line-height:1.55}
+
+    #toast{
+      position:fixed;left:50%;bottom:25px;transform:translateX(-50%) translateY(20px);
+      background:#111c18;border:1px solid #263c33;color:var(--text);padding:11px 16px;border-radius:12px;
+      font-size:12px;opacity:0;pointer-events:none;transition:.22s;z-index:999;box-shadow:var(--shadow)
+    }
+    #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    #firstSetup{
+      position:fixed;inset:0;background:rgba(2,5,4,.92);z-index:1000;display:flex;align-items:center;justify-content:center
+    }
+    .setup-box{width:610px;border:1px solid var(--line);border-radius:21px;background:#0a1210;padding:28px;box-shadow:0 25px 70px rgba(0,0,0,.5)}
+    .setup-logo{font-size:27px;font-weight:850;letter-spacing:6px;color:var(--green);margin-bottom:8px}
+    .setup-title{font-size:20px;font-weight:750;margin-bottom:6px}
+    .setup-text{color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:18px}
+    .setup-box input{width:100%;height:45px;border:1px solid var(--line);border-radius:10px;background:#060c0a;color:white;padding:0 12px;margin:7px 0 12px}
+    .setup-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+    .setup-actions{text-align:right;margin-top:8px}
+
+    @media(max-width:950px){
+      #app{min-width:0}
+      .sidebar{width:155px}.main{left:155px}.c3{grid-column:span 6}.c4{grid-column:span 6}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">AURA</div>
+    <div class="brand-sub">HOME CONTROL</div>
+    <div class="top-right">
+      <div class="top-pill"><span id="topMqttDot" class="dot"></span><span id="topMqtt">CLOUD</span></div>
+      <div class="top-pill"><span id="topDbDot" class="dot"></span><span id="topDb">HISTÓRICO</span></div>
+      <div id="clock" class="clock">--:--</div>
+    </div>
+  </header>
+
+  <aside class="sidebar">
+    <button class="nav-btn active" data-page="home"><span class="ico">⌂</span>HOME</button>
+    <button class="nav-btn" data-page="plants"><span class="ico">♧</span>PLANTS</button>
+    <button class="nav-btn" data-page="server"><span class="ico">▣</span>SERVER</button>
+    <button class="nav-btn" data-page="alarms"><span class="ico">!</span>ALARMAS</button>
+    <button class="nav-btn" data-page="settings"><span class="ico">⚙</span>AJUSTES</button>
+    <div class="nav-footer">AURA HMI · iPad<br>Cloud + Supabase</div>
+  </aside>
+
+  <main class="main">
+    <!-- HOME -->
+    <section id="page-home" class="page active">
+      <div class="page-head">
+        <div class="page-title">Home</div>
+        <div class="page-sub">Estado general de AURA</div>
+      </div>
+
+      <div class="grid">
+        <div class="card c3">
+          <div class="card-title">Plant Station</div>
+          <div id="homePlant" class="medium">SIN DATOS</div>
+          <div class="status-row"><span id="homePlantDot" class="status-dot"></span><span id="homePlantStatus" class="status-text">OFFLINE</span></div>
+        </div>
+        <div class="card c3">
+          <div class="card-title">D1 Mini</div>
+          <div id="homeD1" class="medium">SIN DATOS</div>
+          <div class="status-row"><span id="homeD1Dot" class="status-dot"></span><span id="homeD1Status" class="status-text">OFFLINE</span></div>
+        </div>
+        <div class="card c3">
+          <div class="card-title">AURA Server</div>
+          <div id="homePc" class="medium">DESCONOCIDO</div>
+          <div id="homePcSub" class="small" style="margin-top:9px">Esperando estado</div>
+        </div>
+        <div class="card c3">
+          <div class="card-title">AURA Cloud</div>
+          <div id="homeCloud" class="medium">DESCONECTADO</div>
+          <div class="small" style="margin-top:9px">EMQX · WSS</div>
+        </div>
+
+        <div class="card c4 metric">
+          <div class="card-title">Temperatura</div>
+          <div class="big accent-orange"><span id="homeTemp">--.-</span><span class="unit">°C</span></div>
+          <div id="homeTempState" class="state">--</div>
+          <div id="homePlantTime1" class="last">--</div>
+        </div>
+        <div class="card c4 metric">
+          <div class="card-title">Humedad</div>
+          <div class="big accent-blue"><span id="homeHum">--</span><span class="unit">%</span></div>
+          <div id="homeHumState" class="state">--</div>
+          <div id="homePlantTime2" class="last">--</div>
+        </div>
+        <div class="card c4 metric">
+          <div class="card-title">Luz</div>
+          <div class="big accent-amber"><span id="homeLight">--</span><span class="unit">%</span></div>
+          <div id="homeLightState" class="state">--</div>
+          <div id="homePlantTime3" class="last">--</div>
+        </div>
+
+        <div class="card c7">
+          <div class="card-title">Comunicaciones</div>
+          <div class="info-row"><span class="label">Conexión actual</span><span id="homeConnection" class="value">OFFLINE</span></div>
+          <div class="line"></div>
+          <div class="info-row"><span class="label">Tiempo real</span><span id="homeRealtime" class="value">EMQX</span></div>
+          <div class="info-row"><span class="label">Histórico</span><span id="homeHistory" class="value">SUPABASE</span></div>
+        </div>
+        <div class="card c5">
+          <div class="card-title">Acciones rápidas</div>
+          <button id="homePowerBtn" class="power-btn" style="width:100%;margin-top:18px" disabled>ENCENDER AURA</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLANTS -->
+    <section id="page-plants" class="page">
+      <div class="page-head">
+        <div class="page-title">Plants</div>
+        <div class="page-sub">Sensores ambientales + histórico Cloud</div>
+      </div>
+
+      <div class="grid">
+        <div class="card c4 metric">
+          <div class="card-title">Temperatura</div>
+          <div class="big accent-orange"><span id="plantTemp">--.-</span><span class="unit">°C</span></div>
+          <div id="plantTempState" class="state">--</div>
+        </div>
+        <div class="card c4 metric">
+          <div class="card-title">Humedad</div>
+          <div class="big accent-blue"><span id="plantHum">--</span><span class="unit">%</span></div>
+          <div id="plantHumState" class="state">--</div>
+        </div>
+        <div class="card c4 metric">
+          <div class="card-title">Luz</div>
+          <div class="big accent-amber"><span id="plantLight">--</span><span class="unit">%</span></div>
+          <div id="plantLightState" class="state">--</div>
+        </div>
+
+        <div class="card c12">
+          <div class="chart-toolbar">
+            <div class="seg">
+              <button class="chartMetric active" data-metric="temperature">TEMPERATURA</button>
+              <button class="chartMetric" data-metric="humidity">HUMEDAD</button>
+              <button class="chartMetric" data-metric="light">LUZ</button>
+            </div>
+            <div class="date-nav">
+              <button id="prevDay">‹</button>
+              <input id="chartDate" type="date">
+              <button id="nextDay">›</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart"></canvas></div>
+          <div class="chart-foot">
+            <span>FUENTE: <b id="chartSource">SUPABASE</b></span>
+            <span>MUESTRAS: <b id="chartSamples">0</b></span>
+            <span>MÍN: <b id="chartMin">--</b></span>
+            <span>MEDIA: <b id="chartAvg">--</b></span>
+            <span>MÁX: <b id="chartMax">--</b></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SERVER -->
+    <section id="page-server" class="page">
+      <div class="page-head">
+        <div class="page-title">Server</div>
+        <div class="page-sub">Control remoto del servidor AURA</div>
+      </div>
+
+      <div class="card server-hero">
+        <div class="server-icon">▣</div>
+        <div class="server-info">
+          <div class="card-title">AURA SERVER</div>
+          <div id="serverState" class="big">DESCONOCIDO</div>
+          <div id="serverDesc" class="small">Esperando información del D1 Mini</div>
+        </div>
+        <button id="serverPowerBtn" class="power-btn" disabled>ENCENDER AURA</button>
+      </div>
+
+      <div class="grid">
+        <div class="card c6">
+          <div class="card-title">D1 Mini</div>
+          <div class="info-row"><span class="label">Estado</span><span id="d1Status" class="value">OFFLINE</span></div>
+          <div class="info-row"><span class="label">Wi-Fi RSSI</span><span id="d1Rssi" class="value">-- dBm</span></div>
+          <div class="info-row"><span class="label">IP local</span><span id="d1Ip" class="value">--</span></div>
+          <div class="info-row"><span class="label">MQTT</span><span id="d1Mqtt" class="value">--</span></div>
+        </div>
+        <div class="card c6">
+          <div class="card-title">Último estado</div>
+          <div class="info-row"><span class="label">Recepción HMI</span><span id="d1LastRx" class="value">--</span></div>
+          <div class="info-row"><span class="label">Power LED HIGH</span><span id="d1PowerLed" class="value">-- %</span></div>
+          <div class="info-row"><span class="label">Comando</span><span id="lastCommand" class="value">NINGUNO</span></div>
+          <div class="info-row"><span class="label">Resultado</span><span id="lastResult" class="value">--</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ALARMS -->
+    <section id="page-alarms" class="page">
+      <div class="page-head">
+        <div class="page-title">Alarmas</div>
+        <div class="page-sub">Solo incidencias activas</div>
+      </div>
+      <div id="alarmList" class="card">
+        <div class="alarm-empty">Sin alarmas activas.</div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="page-settings" class="page">
+      <div class="page-head">
+        <div class="page-title">Ajustes</div>
+        <div class="page-sub">Conectividad de esta HMI</div>
+      </div>
+
+      <div class="grid">
+        <div class="card c7">
+          <div class="card-title">AURA Cloud · EMQX</div>
+          <div style="height:15px"></div>
+          <div class="form-row"><label>Broker WSS</label><input id="setBroker" readonly></div>
+          <div class="form-row"><label>Usuario</label><input id="setUser" readonly></div>
+          <div class="form-row"><label>Contraseña aura_ipad</label><input id="setMqttPassword" type="password" autocomplete="off"></div>
+          <button id="saveMqtt" class="btn primary">GUARDAR Y CONECTAR</button>
+          <button id="disconnectMqtt" class="btn">DESCONECTAR</button>
+        </div>
+
+        <div class="card c5">
+          <div class="card-title">Estado Cloud</div>
+          <div class="info-row"><span class="label">EMQX</span><span id="settingsMqtt" class="value">DESCONECTADO</span></div>
+          <div class="info-row"><span class="label">Supabase</span><span id="settingsDb" class="value">SIN CONFIGURAR</span></div>
+          <div class="info-row"><span class="label">Modo</span><span id="settingsMode" class="value">CLOUD</span></div>
+        </div>
+
+        <div class="card c7">
+          <div class="card-title">Histórico Cloud · Supabase</div>
+          <div style="height:15px"></div>
+          <div class="form-row"><label>Endpoint</label><input id="setHistoryUrl" readonly></div>
+          <div class="form-row"><label>AURA_READ_SECRET</label><input id="setReadSecret" type="password" autocomplete="off"></div>
+          <button id="saveHistory" class="btn primary">GUARDAR Y PROBAR</button>
+        </div>
+
+        <div class="card c5">
+          <div class="card-title">Instalación HMI</div>
+          <div class="note" style="margin-top:15px">
+            Abre esta web en Safari, pulsa Compartir → Añadir a pantalla de inicio y después abre AURA desde su icono.
+            Con <b>Acceso guiado</b> puedes dejar el iPad dedicado exclusivamente a esta HMI.
+          </div>
+          <div style="height:12px"></div>
+          <button id="forgetAll" class="btn red">OLVIDAR CREDENCIALES</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<div id="firstSetup" class="hidden">
+  <div class="setup-box">
+    <div class="setup-logo">AURA</div>
+    <div class="setup-title">Configurar HMI</div>
+    <div class="setup-text">
+      Introduce las credenciales exclusivas de esta HMI. No están incluidas en el archivo HTML.
+      Se guardarán únicamente en este dispositivo.
+    </div>
+
+    <div class="setup-label">Contraseña MQTT · usuario aura_ipad</div>
+    <input id="firstMqttPassword" type="password" autocomplete="off">
+
+    <div class="setup-label">AURA_READ_SECRET · Supabase</div>
+    <input id="firstReadSecret" type="password" autocomplete="off">
+
+    <div class="setup-actions">
+      <button id="firstSave" class="btn primary">GUARDAR Y ENTRAR</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var CONFIG = {
+    mqttUrl: "wss://xa60e19c.ala.eu-central-1.emqxsl.com:8084/mqtt",
+    mqttUser: "aura_ipad",
+    historyUrl: "https://vinwpbmljzchsjmaitkb.supabase.co/functions/v1/aura-history-ingest",
+    topicPlantsAvailability: "aura/plants/availability",
+    topicPlantsState: "aura/plants/state",
+    topicServerAvailability: "aura/server/availability",
+    topicServerState: "aura/server/state",
+    topicServerResult: "aura/server/result",
+    topicServerPower: "aura/server/cmd/power",
+    staleSeconds: 40
+  };
+
+  var state = {
+    client: null,
+    mqttConnected: false,
+    mqttConnecting: false,
+    plantOnline: false,
+    d1Online: false,
+    lastPlantRx: 0,
+    lastD1Rx: 0,
+    temperature: null,
+    humidity: null,
+    light: null,
+    temperatureState: "--",
+    humidityState: "--",
+    lightState: "--",
+    plantRssi: null,
+    pcOn: null,
+    d1Rssi: null,
+    d1Ip: "--",
+    d1Mqtt: null,
+    d1PowerLed: null,
+    powerPending: false,
+    lastCommand: "NINGUNO",
+    lastResult: "--",
+    historyOk: false,
+    chartMetric: "temperature",
+    chartRows: []
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function nowMs(){ return new Date().getTime(); }
+  function pad(n){ return n < 10 ? "0"+n : String(n); }
+
+  function toast(msg){
+    var el = $("toast");
+    el.textContent = msg;
+    el.className = "show";
+    window.clearTimeout(toast._t);
+    toast._t = window.setTimeout(function(){ el.className = ""; }, 2600);
+  }
+
+  function formatClock(d){
+    return pad(d.getHours())+":"+pad(d.getMinutes());
+  }
+
+  function formatDateInput(d){
+    return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+  }
+
+  function parseDateInput(s){
+    var p = s.split("-");
+    return new Date(Number(p[0]), Number(p[1])-1, Number(p[2]), 0, 0, 0, 0);
+  }
+
+  function setToday(){
+    $("chartDate").value = formatDateInput(new Date());
+  }
+
+  function setDot(id,on,wait){
+    var el=$(id);
+    el.className="dot"+(on?" on":(wait?" warn":""));
+  }
+
+  function setStatusDot(id,on,wait){
+    var el=$(id);
+    el.className="status-dot "+(on?"on":(wait?"wait":"off"));
+  }
+
+  function stateColor(text){
+    text = String(text || "").toUpperCase();
+    if(text==="IDEAL" || text==="MEDIA") return "var(--green)";
+    if(text==="BAJA" || text==="ALTA" || text==="MUY SECA") return "var(--amber)";
+    if(text.indexOf("MUY")===0) return "var(--red)";
+    return "var(--muted)";
+  }
+
+  function updateUI(){
+    var mqtt = state.mqttConnected;
+    setDot("topMqttDot",mqtt,state.mqttConnecting);
+    $("topMqtt").textContent = mqtt ? "CLOUD ONLINE" : (state.mqttConnecting ? "CLOUD..." : "CLOUD OFFLINE");
+    setDot("topDbDot",state.historyOk,false);
+    $("topDb").textContent = state.historyOk ? "HISTÓRICO ONLINE" : "HISTÓRICO";
+
+    $("homeCloud").textContent = mqtt ? "CONECTADO" : "DESCONECTADO";
+    $("homeCloud").style.color = mqtt ? "var(--green)" : "var(--muted)";
+    $("homeConnection").textContent = mqtt ? "CLOUD" : "OFFLINE";
+    $("homeConnection").style.color = mqtt ? "var(--blue)" : "var(--muted)";
+
+    $("homePlant").textContent = state.plantOnline ? "ONLINE" : "OFFLINE";
+    $("homePlant").style.color = state.plantOnline ? "var(--green)" : "var(--red)";
+    $("homePlantStatus").textContent = state.plantOnline ? "RECIBIENDO DATOS" : "SIN CONEXIÓN";
+    setStatusDot("homePlantDot",state.plantOnline,false);
+
+    $("homeD1").textContent = state.d1Online ? "ONLINE" : "OFFLINE";
+    $("homeD1").style.color = state.d1Online ? "var(--green)" : "var(--red)";
+    $("homeD1Status").textContent = state.d1Online ? "CONTROL DISPONIBLE" : "SIN CONEXIÓN";
+    setStatusDot("homeD1Dot",state.d1Online,false);
+
+    if(state.pcOn===true){
+      $("homePc").textContent="ENCENDIDO";
+      $("homePc").style.color="var(--green)";
+      $("homePcSub").textContent="Servidor AURA operativo";
+    }else if(state.pcOn===false){
+      $("homePc").textContent="APAGADO";
+      $("homePc").style.color="var(--red)";
+      $("homePcSub").textContent=state.d1Online ? "Encendido remoto disponible" : "D1 Mini no disponible";
+    }else{
+      $("homePc").textContent="DESCONOCIDO";
+      $("homePc").style.color="var(--muted)";
+      $("homePcSub").textContent="Esperando estado";
+    }
+
+    if(state.temperature!==null){
+      $("homeTemp").textContent=Number(state.temperature).toFixed(1);
+      $("plantTemp").textContent=Number(state.temperature).toFixed(1);
+    }
+    if(state.humidity!==null){
+      $("homeHum").textContent=Math.round(state.humidity);
+      $("plantHum").textContent=Math.round(state.humidity);
+    }
+    if(state.light!==null){
+      $("homeLight").textContent=Math.round(state.light);
+      $("plantLight").textContent=Math.round(state.light);
+    }
+
+    $("homeTempState").textContent=state.temperatureState;
+    $("plantTempState").textContent=state.temperatureState;
+    $("homeTempState").style.color=stateColor(state.temperatureState);
+    $("plantTempState").style.color=stateColor(state.temperatureState);
+
+    $("homeHumState").textContent=state.humidityState;
+    $("plantHumState").textContent=state.humidityState;
+    $("homeHumState").style.color=stateColor(state.humidityState);
+    $("plantHumState").style.color=stateColor(state.humidityState);
+
+    $("homeLightState").textContent=state.lightState;
+    $("plantLightState").textContent=state.lightState;
+    $("homeLightState").style.color=stateColor(state.lightState);
+    $("plantLightState").style.color=stateColor(state.lightState);
+
+    var plantTime = state.lastPlantRx ? formatClock(new Date(state.lastPlantRx)) : "--";
+    $("homePlantTime1").textContent=plantTime;
+    $("homePlantTime2").textContent=plantTime;
+    $("homePlantTime3").textContent=plantTime;
+
+    $("serverState").textContent = state.pcOn===true ? "ENCENDIDO" : (state.pcOn===false ? "APAGADO" : "DESCONOCIDO");
+    $("serverState").style.color = state.pcOn===true ? "var(--green)" : (state.pcOn===false ? "var(--red)" : "var(--muted)");
+    $("serverDesc").textContent = state.d1Online
+      ? (state.pcOn===true ? "D1 Mini confirma el servidor encendido" : "D1 Mini preparado para encendido remoto")
+      : "D1 Mini sin conexión Cloud";
+
+    $("d1Status").textContent = state.d1Online ? "ONLINE" : "OFFLINE";
+    $("d1Status").style.color = state.d1Online ? "var(--green)" : "var(--red)";
+    $("d1Rssi").textContent = state.d1Rssi===null ? "-- dBm" : state.d1Rssi+" dBm";
+    $("d1Ip").textContent = state.d1Ip || "--";
+    $("d1Mqtt").textContent = state.d1Mqtt===null ? "--" : (state.d1Mqtt ? "CONECTADO" : "DESCONECTADO");
+    $("d1Mqtt").style.color = state.d1Mqtt ? "var(--green)" : "var(--red)";
+    $("d1LastRx").textContent = state.lastD1Rx ? new Date(state.lastD1Rx).toLocaleTimeString() : "--";
+    $("d1PowerLed").textContent = state.d1PowerLed===null ? "-- %" : state.d1PowerLed+" %";
+    $("lastCommand").textContent = state.lastCommand;
+    $("lastResult").textContent = state.lastResult;
+
+    var canPower = mqtt && state.d1Online && state.pcOn===false && !state.powerPending;
+    var btns = [$("homePowerBtn"),$("serverPowerBtn")];
+    for(var i=0;i<btns.length;i++){
+      btns[i].disabled=!canPower;
+      btns[i].textContent=state.powerPending ? "ENVIANDO..." : (state.pcOn===true ? "AURA ENCENDIDO" : "ENCENDER AURA");
+    }
+
+    $("settingsMqtt").textContent = mqtt ? "CONECTADO" : "DESCONECTADO";
+    $("settingsMqtt").style.color = mqtt ? "var(--green)" : "var(--red)";
+    $("settingsDb").textContent = state.historyOk ? "CONECTADO" : "SIN VERIFICAR";
+    $("settingsDb").style.color = state.historyOk ? "var(--green)" : "var(--amber)";
+    $("settingsMode").textContent = "CLOUD";
+
+    renderAlarms();
+  }
+
+  function renderAlarms(){
+    var alarms=[];
+    if(!state.mqttConnected) alarms.push(["☁","AURA Cloud desconectado","La HMI no está conectada a EMQX."]);
+    if(state.mqttConnected && !state.plantOnline) alarms.push(["♧","Plant Station offline","No se reciben datos recientes del ESP32."]);
+    if(state.mqttConnected && !state.d1Online) alarms.push(["▣","D1 Mini offline","El control remoto del servidor no está disponible."]);
+
+    var t=String(state.temperatureState||"").toUpperCase();
+    var h=String(state.humidityState||"").toUpperCase();
+    if(t==="MUY BAJA" || t==="MUY ALTA") alarms.push(["!","Temperatura fuera de rango","Estado actual: "+t]);
+    if(h==="MUY SECA" || h==="MUY ALTA") alarms.push(["!","Humedad fuera de rango","Estado actual: "+h]);
+
+    var box=$("alarmList");
+    if(!alarms.length){
+      box.innerHTML='<div class="alarm-empty">Sin alarmas activas.</div>';
+      return;
+    }
+    var out="";
+    for(var i=0;i<alarms.length;i++){
+      out+='<div class="alarm-item"><div class="alarm-icon">'+alarms[i][0]+'</div><div class="alarm-body"><div class="alarm-title">'+alarms[i][1]+'</div><div class="alarm-desc">'+alarms[i][2]+'</div></div></div>';
+    }
+    box.innerHTML=out;
+  }
+
+  function connectMQTT(){
+    var password = localStorage.getItem("aura_mqtt_password") || "";
+    if(!password){
+      toast("Configura la contraseña de aura_backend.");
+      showPage("settings");
+      return;
+    }
+    if(typeof mqtt==="undefined"){
+      toast("No se pudo cargar el cliente MQTT.");
+      return;
+    }
+    if(state.client){
+      try{ state.client.end(true); }catch(e){}
+      state.client=null;
+    }
+
+    state.mqttConnecting=true;
+    state.mqttConnected=false;
+    updateUI();
+
+    var clientId="aura_ipad_"+Math.random().toString(16).slice(2,10)+"_"+new Date().getTime();
+    state.client=mqtt.connect(CONFIG.mqttUrl,{
+      username:CONFIG.mqttUser,
+      password:password,
+      clientId:clientId,
+      clean:true,
+      reconnectPeriod:5000,
+      connectTimeout:12000,
+      keepalive:30
+    });
+
+    state.client.on("connect",function(){
+      state.mqttConnected=true;
+      state.mqttConnecting=false;
+      state.client.subscribe("aura/plants/#",{qos:0});
+      state.client.subscribe("aura/server/#",{qos:0});
+      toast("AURA Cloud conectado");
+      updateUI();
+    });
+
+    state.client.on("reconnect",function(){
+      state.mqttConnecting=true;
+      updateUI();
+    });
+
+    state.client.on("close",function(){
+      state.mqttConnected=false;
+      state.mqttConnecting=false;
+      updateUI();
+    });
+
+    state.client.on("offline",function(){
+      state.mqttConnected=false;
+      state.mqttConnecting=false;
+      updateUI();
+    });
+
+    state.client.on("error",function(){
+      state.mqttConnected=false;
+      state.mqttConnecting=false;
+      updateUI();
+    });
+
+    state.client.on("message",handleMessage);
+  }
+
+  function handleMessage(topic,payload){
+    var text="";
+    try{text=payload.toString();}catch(e){return;}
+
+    if(topic===CONFIG.topicPlantsAvailability){
+      state.plantOnline=text.trim().toLowerCase()==="online";
+      if(state.plantOnline) state.lastPlantRx=nowMs();
+      updateUI();
+      return;
+    }
+
+    if(topic===CONFIG.topicServerAvailability){
+      state.d1Online=text.trim().toLowerCase()==="online";
+      if(state.d1Online) state.lastD1Rx=nowMs();
+      updateUI();
+      return;
+    }
+
+    var data;
+    try{ data=JSON.parse(text); }catch(e){ return; }
+
+    if(topic===CONFIG.topicPlantsState){
+      state.lastPlantRx=nowMs();
+      state.plantOnline=data.online!==false;
+      if(typeof data.temperature==="number") state.temperature=data.temperature;
+      if(typeof data.humidity==="number") state.humidity=data.humidity;
+      if(typeof data.light==="number") state.light=data.light;
+      state.temperatureState=data.temperatureState || state.temperatureState;
+      state.humidityState=data.humidityState || state.humidityState;
+      state.lightState=data.lightState || state.lightState;
+      if(typeof data.wifiRssi==="number") state.plantRssi=data.wifiRssi;
+      updateUI();
+      return;
+    }
+
+    if(topic===CONFIG.topicServerState){
+      state.lastD1Rx=nowMs();
+      state.d1Online=data.online!==false;
+      if(typeof data.pcOn==="boolean") state.pcOn=data.pcOn;
+      if(typeof data.wifiRssi==="number") state.d1Rssi=data.wifiRssi;
+      if(data.ip) state.d1Ip=String(data.ip);
+      if(typeof data.mqttConnected==="boolean") state.d1Mqtt=data.mqttConnected;
+      if(typeof data.powerLedHighPercent==="number") state.d1PowerLed=data.powerLedHighPercent;
+      if(state.pcOn===true) state.powerPending=false;
+      updateUI();
+      return;
+    }
+
+    if(topic===CONFIG.topicServerResult){
+      state.lastD1Rx=nowMs();
+      state.d1Online=true;
+      state.powerPending=false;
+      if(data.id) state.lastCommand=String(data.id);
+      state.lastResult=data.result ? String(data.result).toUpperCase() : (data.ok===true ? "OK" : "ERROR");
+      toast(data.ok===true ? "Orden aceptada por D1 Mini" : "D1: "+state.lastResult);
+      updateUI();
+    }
+  }
+
+  function powerOn(){
+    if(!state.client || !state.mqttConnected || !state.d1Online || state.pcOn!==false || state.powerPending) return;
+    var id="ipad-"+new Date().getTime()+"-"+Math.random().toString(16).slice(2,6);
+    var body={
+      id:id,
+      action:"power_on",
+      issuedAt:Math.floor(new Date().getTime()/1000),
+      expiresIn:15
+    };
+    state.powerPending=true;
+    state.lastCommand=id;
+    state.lastResult="ENVIANDO";
+    updateUI();
+    state.client.publish(CONFIG.topicServerPower,JSON.stringify(body),{qos:0,retain:false},function(err){
+      if(err){
+        state.powerPending=false;
+        state.lastResult="ERROR ENVÍO";
+        toast("No se pudo enviar la orden.");
+        updateUI();
+      }else{
+        toast("Orden ENCENDER enviada");
+        window.setTimeout(function(){
+          if(state.powerPending){
+            state.powerPending=false;
+            updateUI();
+          }
+        },15000);
+      }
+    });
+  }
+
+  function checkFreshness(){
+    var now=nowMs();
+    if(state.lastPlantRx && (now-state.lastPlantRx)>CONFIG.staleSeconds*1000) state.plantOnline=false;
+    if(state.lastD1Rx && (now-state.lastD1Rx)>CONFIG.staleSeconds*1000) state.d1Online=false;
+    updateUI();
+  }
+
+  function loadHistory(){
+    var secret=localStorage.getItem("aura_read_secret") || "";
+    if(!secret){
+      state.historyOk=false;
+      updateUI();
+      toast("Configura AURA_READ_SECRET.");
+      return;
+    }
+
+    var day=parseDateInput($("chartDate").value);
+    var end=new Date(day.getTime()+24*60*60*1000);
+    var url=CONFIG.historyUrl+
+      "?device=aura_plants"+
+      "&start="+encodeURIComponent(day.toISOString())+
+      "&end="+encodeURIComponent(end.toISOString());
+
+    $("chartSource").textContent="CARGANDO...";
+
+    fetch(url,{
+      method:"GET",
+      headers:{
+        "Accept":"application/json",
+        "x-aura-read-secret":secret
+      },
+      cache:"no-store"
+    })
+    .then(function(res){
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      return res.json();
+    })
+    .then(function(data){
+      if(!data || data.ok!==true || !Array.isArray(data.rows)) throw new Error("Respuesta inválida");
+      state.chartRows=data.rows;
+      state.historyOk=true;
+      $("chartSource").textContent="CLOUD · SUPABASE";
+      renderChart();
+      updateUI();
+    })
+    .catch(function(err){
+      state.historyOk=false;
+      state.chartRows=[];
+      $("chartSource").textContent="SIN CONEXIÓN";
+      renderChart();
+      updateUI();
+      toast("Histórico Cloud: "+err.message);
+    });
+  }
+
+  function renderChart(){
+    var canvas=$("chart");
+    var rect=canvas.getBoundingClientRect();
+    var dpr=window.devicePixelRatio || 1;
+    canvas.width=Math.max(1,Math.floor(rect.width*dpr));
+    canvas.height=Math.max(1,Math.floor(rect.height*dpr));
+    var ctx=canvas.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    var w=rect.width,h=rect.height;
+    ctx.clearRect(0,0,w,h);
+
+    var padL=52,padR=12,padT=14,padB=32;
+    var pw=w-padL-padR,ph=h-padT-padB;
+    var metric=state.chartMetric;
+    var vals=[],pts=[];
+
+    for(var i=0;i<state.chartRows.length;i++){
+      var row=state.chartRows[i];
+      var v=Number(row[metric]);
+      var t=Date.parse(row.measured_at);
+      if(isFinite(v) && isFinite(t)){ vals.push(v); pts.push({v:v,t:t}); }
+    }
+
+    $("chartSamples").textContent=pts.length;
+
+    ctx.font="10px -apple-system,Helvetica,Arial";
+    ctx.lineWidth=1;
+
+    var day=parseDateInput($("chartDate").value);
+    var dayStart=day.getTime();
+    var dayEnd=dayStart+24*60*60*1000;
+
+    var minY,maxY;
+    if(metric==="humidity" || metric==="light"){
+      minY=0; maxY=100;
+    }else if(vals.length){
+      var rawMin=Math.min.apply(null,vals),rawMax=Math.max.apply(null,vals);
+      var margin=Math.max(2,(rawMax-rawMin)*0.25);
+      minY=Math.floor((rawMin-margin)*2)/2;
+      maxY=Math.ceil((rawMax+margin)*2)/2;
+      if(maxY-minY<4){ minY-=2; maxY+=2; }
+    }else{
+      minY=10;maxY=35;
+    }
+
+    // grid + Y labels
+    for(var gy=0;gy<=4;gy++){
+      var y=padT+(ph*(gy/4));
+      ctx.strokeStyle="#18251f";
+      ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+pw,y);ctx.stroke();
+      var val=maxY-(maxY-minY)*(gy/4);
+      ctx.fillStyle="#71847c";
+      ctx.textAlign="right";
+      ctx.textBaseline="middle";
+      ctx.fillText(metric==="temperature"?val.toFixed(1):Math.round(val)+"%",padL-8,y);
+    }
+
+    // X grid labels
+    var hours=[0,6,12,18,24];
+    for(var gx=0;gx<hours.length;gx++){
+      var x=padL+pw*(hours[gx]/24);
+      ctx.strokeStyle="#121e19";
+      ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,padT+ph);ctx.stroke();
+      ctx.fillStyle="#71847c";
+      ctx.textAlign=gx===0?"left":(gx===hours.length-1?"right":"center");
+      ctx.textBaseline="top";
+      ctx.fillText(pad(hours[gx])+":00",x,padT+ph+9);
+    }
+
+    if(!pts.length){
+      ctx.fillStyle="#64766e";
+      ctx.font="13px -apple-system,Helvetica,Arial";
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText("No hay muestras para este día",padL+pw/2,padT+ph/2);
+      $("chartMin").textContent="--";$("chartAvg").textContent="--";$("chartMax").textContent="--";
+      return;
+    }
+
+    var color=metric==="temperature"?"#ff9d52":(metric==="humidity"?"#5aa9ff":"#ffc857");
+    ctx.strokeStyle=color;
+    ctx.lineWidth=2;
+    ctx.beginPath();
+
+    var sum=0;
+    for(i=0;i<pts.length;i++){
+      var px=padL+pw*((pts[i].t-dayStart)/(dayEnd-dayStart));
+      var py=padT+ph*(1-(pts[i].v-minY)/(maxY-minY));
+      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      sum+=pts[i].v;
+    }
+    ctx.stroke();
+
+    var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals),avg=sum/vals.length;
+    var suffix=metric==="temperature"?" °C":" %";
+    $("chartMin").textContent=(metric==="temperature"?min.toFixed(1):Math.round(min))+suffix;
+    $("chartAvg").textContent=(metric==="temperature"?avg.toFixed(1):Math.round(avg))+suffix;
+    $("chartMax").textContent=(metric==="temperature"?max.toFixed(1):Math.round(max))+suffix;
+  }
+
+  function showPage(name){
+    var pages=document.querySelectorAll(".page");
+    var navs=document.querySelectorAll(".nav-btn");
+    var i;
+    for(i=0;i<pages.length;i++) pages[i].className="page";
+    for(i=0;i<navs.length;i++) navs[i].className="nav-btn";
+    $("page-"+name).className="page active";
+    var nav=document.querySelector('.nav-btn[data-page="'+name+'"]');
+    if(nav) nav.className="nav-btn active";
+    if(name==="plants"){
+      window.setTimeout(function(){ loadHistory(); },80);
+    }
+  }
+
+  function changeDay(delta){
+    var d=parseDateInput($("chartDate").value);
+    d.setDate(d.getDate()+delta);
+    var today=new Date();today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    if(d>today) d=today;
+    $("chartDate").value=formatDateInput(d);
+    loadHistory();
+  }
+
+  function setupEvents(){
+    var navs=document.querySelectorAll(".nav-btn");
+    for(var i=0;i<navs.length;i++){
+      navs[i].addEventListener("click",function(){showPage(this.getAttribute("data-page"));});
+    }
+
+    $("homePowerBtn").addEventListener("click",powerOn);
+    $("serverPowerBtn").addEventListener("click",powerOn);
+
+    var metrics=document.querySelectorAll(".chartMetric");
+    for(i=0;i<metrics.length;i++){
+      metrics[i].addEventListener("click",function(){
+        for(var j=0;j<metrics.length;j++) metrics[j].className="chartMetric";
+        this.className="chartMetric active";
+        state.chartMetric=this.getAttribute("data-metric");
+        renderChart();
+      });
+    }
+
+    $("prevDay").addEventListener("click",function(){changeDay(-1);});
+    $("nextDay").addEventListener("click",function(){changeDay(1);});
+    $("chartDate").addEventListener("change",loadHistory);
+
+    $("saveMqtt").addEventListener("click",function(){
+      var v=$("setMqttPassword").value.trim();
+      if(!v){toast("Introduce la contraseña.");return;}
+      localStorage.setItem("aura_mqtt_password",v);
+      connectMQTT();
+    });
+
+    $("disconnectMqtt").addEventListener("click",function(){
+      if(state.client){try{state.client.end(true);}catch(e){}}
+      state.client=null;state.mqttConnected=false;state.mqttConnecting=false;updateUI();
+    });
+
+    $("saveHistory").addEventListener("click",function(){
+      var v=$("setReadSecret").value.trim();
+      if(!v){toast("Introduce AURA_READ_SECRET.");return;}
+      localStorage.setItem("aura_read_secret",v);
+      loadHistory();
+    });
+
+    $("forgetAll").addEventListener("click",function(){
+      if(window.confirm("¿Olvidar las credenciales guardadas en este iPad?")){
+        localStorage.removeItem("aura_mqtt_password");
+        localStorage.removeItem("aura_read_secret");
+        location.reload();
+      }
+    });
+
+    $("firstSave").addEventListener("click",function(){
+      var m=$("firstMqttPassword").value.trim();
+      var r=$("firstReadSecret").value.trim();
+      if(!m || !r){toast("Introduce las dos credenciales.");return;}
+      localStorage.setItem("aura_mqtt_password",m);
+      localStorage.setItem("aura_read_secret",r);
+      $("firstSetup").className="hidden";
+      $("setMqttPassword").value=m;
+      $("setReadSecret").value=r;
+      connectMQTT();
+      loadHistory();
+    });
+
+    window.addEventListener("resize",function(){ if($("page-plants").className.indexOf("active")>=0) renderChart(); });
+  }
+
+  function init(){
+    $("setBroker").value=CONFIG.mqttUrl;
+    $("setUser").value=CONFIG.mqttUser;
+    $("setHistoryUrl").value=CONFIG.historyUrl;
+    setToday();
+
+    var mp=localStorage.getItem("aura_mqtt_password") || "";
+    var rs=localStorage.getItem("aura_read_secret") || "";
+    $("setMqttPassword").value=mp;
+    $("setReadSecret").value=rs;
+
+    setupEvents();
+    updateUI();
+
+    if(!mp || !rs){
+      $("firstSetup").className="";
+      $("firstMqttPassword").value=mp;
+      $("firstReadSecret").value=rs;
+    }else{
+      connectMQTT();
+      loadHistory();
+    }
+
+    window.setInterval(function(){
+      $("clock").textContent=formatClock(new Date());
+    },1000);
+    $("clock").textContent=formatClock(new Date());
+
+    window.setInterval(checkFreshness,5000);
+  }
+
+  document.addEventListener("DOMContentLoaded",init);
+})();
+</script>
+</body>
+</html>
